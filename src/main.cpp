@@ -1,70 +1,47 @@
+#include <Arduino.h>
 #include <ESP8266WiFi.h>
-#include <ESPAsyncWebServer.h>
-#include <LittleFS.h>
-#include <ArduinoOTA.h>
+#include <ESP8266WebServer.h>
+#include "wifi.h"
+#include "otaManager.h"
 
-// Informations Wi-Fi
-const char* ssid = "NETGEAREA758B-g026";
-const char* password = "boulerouge62219!";
+ESP8266WebServer server(80);
+const int ledPin = D4; // LED pin
+OTAManager ota;
 
-AsyncWebServer server(80);
+void handleRoot() {
+  server.send(200, "text/html", "<html><body><h1>ESP8266 Web Server</h1><button onclick=\"fetch('/toggle').then(response => response.text()).then(data => console.log(data))\">Toggle LED</button><div id='vu-meter'></div><script src='/vue.js'></script><script src='/app.js'></script></body></html>");
+}
+
+void handleToggleLED() {  
+  digitalWrite(ledPin, !digitalRead(ledPin));
+  server.send(200, "text/plain", "LED Toggled");
+}
+
+void handleVUData() {
+  int vuValue = analogRead(A0); // Read VU meter value
+  server.send(200, "application/json", String("{\"vu\":") + vuValue + "}");
+}
 
 void setup() {
-    Serial.begin(115200); // Initialisation de la communication série
+  Serial.begin(115200);
+  pinMode(ledPin, OUTPUT);
+  digitalWrite(ledPin, LOW);
 
-    // Connexion Wi-Fi
-    WiFi.begin(ssid, password);
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(1000);
-        Serial.println("Connexion Wi-Fi en cours...");
-    }
-    Serial.println("Connecté au Wi-Fi");
+  configWiFi(true, IPAddress(192, 168, 1, 34), IPAddress(192, 168, 1, 254), IPAddress(255, 255, 255, 0));
+  
+  ota.setupOTA("ESP8266", "admin");
 
-    // Initialiser LittleFS
-    if (!LittleFS.begin()) {
-        Serial.println("Erreur de montage LittleFS");
-        return;
-    }
+  server.on("/", handleRoot);
+  server.on("/toggle", handleToggleLED);
+  server.on("/vu", handleVUData);
+  server.serveStatic("/vue.js", SPIFFS, "/vue.js");
+  server.serveStatic("/app.js", SPIFFS, "/app.js");
 
-    // Configurer le serveur HTTP pour servir le fichier index.html
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->send(LittleFS, "/index.html", "text/html");
-    });
-
-    // Initialiser OTA
-    ArduinoOTA.onStart();
-    ArduinoOTA.onEnd([]() {
-        String type;
-        if (ArduinoOTA.getCommand() == U_FLASH) { // Mise à jour du firmware
-            type = "firmware";
-        } else { // Mise à jour du système de fichiers
-            type = "filesystem";
-        }
-        Serial.println("Fin de la mise à jour : " + type);
-    });
-    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-        Serial.printf("Progression de la mise à jour : %u%%\r", (progress / (total / 100)));
-    });
-    ArduinoOTA.onError([](ota_error_t error) {
-        Serial.printf("Erreur OTA : ");
-        if (error == OTA_AUTH_ERROR) {
-            Serial.println("Erreur d'authentification");
-        } else if (error == OTA_BEGIN_ERROR) {
-            Serial.println("Erreur de début");
-        } else if (error == OTA_CONNECT_ERROR) {
-            Serial.println("Erreur de connexion");
-        } else if (error == OTA_RECEIVE_ERROR) {
-            Serial.println("Erreur de réception");
-        } else if (error == OTA_END_ERROR) {
-            Serial.println("Erreur de fin");
-        }
-    });
-
-    server.begin(); // Démarrer le serveur
+  server.begin();
+  Serial.println("HTTP server started");
 }
 
 void loop() {
-    ArduinoOTA.handle(); // Gérer les requêtes OTA
+  server.handleClient();
+  ota.handleOTA();
 }
-// second commit sur master
-// encore un commit
