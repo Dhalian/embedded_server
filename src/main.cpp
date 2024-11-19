@@ -3,8 +3,8 @@
 #include <ArduinoOTA.h>
 
 // Informations de connexion Wi-Fi
-const char* ssid = "NETGEAREA758B-g026";
-const char* password = "boulerouge62219!";
+const char* ssid = "{SSID}";
+const char* password = "{PASSWORD}";
 
 // Configuration de l'adresse IP fixe
 IPAddress ip(192, 168, 1, 36);        // Adresse IP fixe
